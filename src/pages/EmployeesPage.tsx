@@ -73,6 +73,7 @@ export const EmployeesPage: React.FC = () => {
 
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('+99890');
+  const [googleEmail, setGoogleEmail] = useState('');
   const [roleId, setRoleId] = useState<RoleId>('cashier');
   const [assignedStoreIds, setAssignedStoreIds] = useState<string[]>([]);
   const [baseSalary, setBaseSalary] = useState(3500000);
@@ -140,6 +141,7 @@ export const EmployeesPage: React.FC = () => {
     setEditingEmp(null);
     setName('');
     setPhone('+99890');
+    setGoogleEmail('');
     setRoleId('cashier');
     setAssignedStoreIds(db.stores[0] ? [db.stores[0].id] : []);
     setBaseSalary(3500000);
@@ -159,6 +161,7 @@ export const EmployeesPage: React.FC = () => {
     setEditingEmp(emp);
     setName(emp.name);
     setPhone(emp.phone);
+    setGoogleEmail(emp.googleEmail ?? linkedUser?.googleEmail ?? '');
     setRoleId(emp.roleId);
     setAssignedStoreIds(linkedUser?.assignedStoreIds?.length ? linkedUser.assignedStoreIds : [emp.storeId]);
     setBaseSalary(emp.baseSalary);
@@ -239,6 +242,8 @@ export const EmployeesPage: React.FC = () => {
     const primaryStoreId = assignedStoreIds[0] || db.stores[0]?.id || 'store-chilonzor';
     const empId = editingEmp ? editingEmp.id : uid('emp');
 
+    const cleanGoogleEmail = googleEmail.trim().toLowerCase();
+
     try {
       await upsertEmployee(
         {
@@ -246,6 +251,7 @@ export const EmployeesPage: React.FC = () => {
           userId: targetUserId,
           name: name.trim(),
           phone: phone.trim(),
+          ...(cleanGoogleEmail ? { googleEmail: cleanGoogleEmail } : {}),
           roleId,
           baseSalary,
           commissionPercent: commissionPct,
@@ -258,6 +264,7 @@ export const EmployeesPage: React.FC = () => {
         },
         {
           pin: cleanPin,
+          googleEmail: cleanGoogleEmail,
           ...(password.trim() ? { password: password.trim() } : {}),
           assignedStoreIds: assignedStoreIds.length ? assignedStoreIds : [primaryStoreId],
           ...(useCustomPerms ? { customPermissions: customPerms } : {}),
@@ -598,6 +605,19 @@ export const EmployeesPage: React.FC = () => {
                   step="0.5"
                   value={commissionPct}
                   onChange={(e) => setCommissionPct(Number(e.target.value))}
+                  className="w-full h-10 px-3 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 text-xs font-mono"
+                />
+              </div>
+
+              <div className="sm:col-span-2">
+                <label className="block text-slate-500 mb-1 font-medium">
+                  Google Email (Gmail — boshqa telefondan Google orqali kirish uchun, ixtiyoriy)
+                </label>
+                <input
+                  type="email"
+                  value={googleEmail}
+                  onChange={(e) => setGoogleEmail(e.target.value)}
+                  placeholder="xodim@gmail.com"
                   className="w-full h-10 px-3 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 text-xs font-mono"
                 />
               </div>

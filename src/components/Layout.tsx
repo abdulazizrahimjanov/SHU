@@ -27,6 +27,7 @@ import {
   Info,
   Check,
   ChevronRight,
+  Cloud,
 } from 'lucide-react';
 import { useAppStore } from '../store/useAppStore';
 import { useT } from '../i18n';
@@ -80,6 +81,10 @@ export const Layout: React.FC = () => {
   const updateUserCredentials = useAppStore((s) => s.updateUserCredentials);
   const setShowOnboarding = useAppStore((s) => s.setShowOnboarding);
   const logout = useAppStore((s) => s.logout);
+  const loginWithGoogle = useAppStore((s) => s.loginWithGoogle);
+  const cloudConnected = useAppStore((s) => s.cloudConnected);
+  const cloudConnecting = useAppStore((s) => s.cloudConnecting);
+  const firebaseEmail = useAppStore((s) => s.firebaseEmail);
   const toasts = useAppStore((s) => s.toasts);
   const dismissToast = useAppStore((s) => s.dismissToast);
   const notify = useAppStore((s) => s.notify);
@@ -574,6 +579,50 @@ export const Layout: React.FC = () => {
                 </span>
                 <ChevronRight className="w-4 h-4 text-slate-400" />
               </button>
+
+              {!cloudConnected ? (
+                <button
+                  type="button"
+                  disabled={cloudConnecting}
+                  onClick={async () => {
+                    const res = await loginWithGoogle({ linkCurrentSession: true });
+                    if (res.ok) {
+                      notify(
+                        language === 'ru' ? 'Подключено к облаку (Firebase)' : 'Firebase bulut bazasiga ulandi!',
+                        'success'
+                      );
+                    } else if (res.error) {
+                      notify(res.error, 'error');
+                    }
+                  }}
+                  className="w-full px-4 py-3.5 flex items-center justify-between text-sm font-semibold text-teal-700 dark:text-teal-400 hover:bg-teal-50/70 dark:hover:bg-teal-950/30 disabled:opacity-60"
+                >
+                  <span className="flex items-center gap-3">
+                    <Cloud className="w-4 h-4" />
+                    <span>
+                      {cloudConnecting
+                        ? language === 'ru'
+                          ? 'Подключение...'
+                          : 'Ulanmoqda...'
+                        : language === 'ru'
+                        ? 'Подключить облако (Google)'
+                        : 'Bulutga ulash (Google)'}
+                    </span>
+                  </span>
+                  <ChevronRight className="w-4 h-4" />
+                </button>
+              ) : (
+                <div className="px-4 py-3 flex items-center justify-between text-xs text-emerald-700 dark:text-emerald-400 bg-emerald-50/50 dark:bg-emerald-950/20">
+                  <span className="flex items-center gap-2 font-semibold truncate">
+                    <Cloud className="w-4 h-4 shrink-0" />
+                    <span className="truncate">
+                      {language === 'ru' ? 'Облако подключено' : 'Bulut ulangan'}
+                      {firebaseEmail && !firebaseEmail.endsWith('@shubrend.internal') ? ` · ${firebaseEmail}` : ''}
+                    </span>
+                  </span>
+                  <CheckCircle2 className="w-4 h-4 shrink-0" />
+                </div>
+              )}
 
               <button
                 type="button"

@@ -42,7 +42,10 @@ export const SettingsPage: React.FC = () => {
   const clearAllTestData = useAppStore((s) => s.clearAllTestData);
   const importBackupJson = useAppStore((s) => s.importBackupJson);
   const migrateLocalDataToCloud = useAppStore((s) => s.migrateLocalDataToCloud);
+  const loginWithGoogle = useAppStore((s) => s.loginWithGoogle);
   const cloudConnected = useAppStore((s) => s.cloudConnected);
+  const cloudConnecting = useAppStore((s) => s.cloudConnecting);
+  const firebaseEmail = useAppStore((s) => s.firebaseEmail);
   const isOnline = useAppStore((s) => s.isOnline);
   const notify = useAppStore((s) => s.notify);
   const t = useT();
@@ -1011,12 +1014,30 @@ export const SettingsPage: React.FC = () => {
                 <RotateCcw className="w-4 h-4" />
                 <span>Demo bazani tiklash</span>
               </button>
+              {!cloudConnected && (
+                <button
+                  type="button"
+                  disabled={cloudConnecting || !isOnline}
+                  onClick={async () => {
+                    const res = await loginWithGoogle({ linkCurrentSession: true });
+                    if (res.ok) {
+                      notify('Firebase bulut bazasiga muvaffaqiyatli ulandi!', 'success');
+                    } else if (res.error) {
+                      notify(res.error, 'error');
+                    }
+                  }}
+                  className="h-10 px-4 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-semibold inline-flex items-center gap-1.5 disabled:opacity-50"
+                >
+                  <CloudUpload className="w-4 h-4" />
+                  <span>{cloudConnecting ? 'Ulanmoqda...' : 'Google bilan bulutga ulash'}</span>
+                </button>
+              )}
               <button
                 type="button"
                 disabled={migratingCloud || !isOnline}
                 onClick={async () => {
                   if (!cloudConnected) {
-                    notify("Tizim internet va server bilan ulanmoqda, birozdan so'ng qayta urinib ko'ring", 'info');
+                    notify("Avval «Google bilan bulutga ulash» tugmasini bosing", 'info');
                     return;
                   }
                   setMigratingCloud(true);
@@ -1049,6 +1070,11 @@ export const SettingsPage: React.FC = () => {
                 <span>{migratingCloud ? "Ko'chirilmoqda..." : "Lokal ma'lumotlarni bulutga ko'chirish"}</span>
               </button>
             </div>
+            {cloudConnected && (
+              <div className="text-[11px] font-medium text-emerald-700 dark:text-emerald-400">
+                Bulutga ulangan{firebaseEmail ? `: ${firebaseEmail}` : ''}
+              </div>
+            )}
           </div>
 
           <div className="bg-red-50/70 dark:bg-red-950/20 border border-red-200 dark:border-red-900 rounded-xl p-5 space-y-3">

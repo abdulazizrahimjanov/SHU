@@ -53,6 +53,7 @@ import {
   probeFirestoreConnection,
   provisionStaffAccountOnSecondaryApp,
   signInStaffWithEmailPassword,
+  signInWithGooglePopup,
   signOutFirebase,
   watchAuthState,
 } from '../firebase';
@@ -151,6 +152,7 @@ interface AppState {
   can: (perm: Permission) => boolean;
   canAccessStore: (storeId: string) => boolean;
   loginWithPhone: (phone: string, password: string) => Promise<boolean>;
+  loginWithGoogle: (options?: { linkCurrentSession?: boolean }) => Promise<{ ok: boolean; error?: string }>;
   switchUserByPin: (pin: string) => User | null;
   verifyManagerPin: (pin: string) => User | null;
   logout: () => void;
@@ -702,6 +704,7 @@ export const useAppStore = create<AppState>((set, get) => {
         pinHash: hashStaffSecret(generatedPin),
         hashAlgo: 'sha256',
         authMigrated: true,
+        ...(email && !email.endsWith('@shubrend.internal') ? { googleEmail: email } : {}),
         roleId: ctx.roleId,
         assignedStoreIds: ctx.assignedStoreIds.length ? ctx.assignedStoreIds : [fallbackStoreId],
         isActive: true,
@@ -1393,16 +1396,18 @@ export const useAppStore = create<AppState>((set, get) => {
       const internalEmail = phoneToInternalEmail(phone);
       const authPass = deriveFirebaseAuthPassword(phone, secret);
       let fbUser: FirebaseUser | null = null;
+      let lastAuthError: unknown = null;
 
       try {
         fbUser = await signInStaffWithEmailPassword(internalEmail, authPass);
       } catch (err) {
+        lastAuthError = err;
         const code =
           typeof err === 'object' && err !== null && 'code' in err
             ? String((err as { code?: unknown }).code)
             : '';
 
-        if (localMatch) {
+        if (localMatch && code !== 'auth/operation-not-allowed') {
           // Try alternate secret if account was registered with password while PIN was typed (or vice versa)
           const altSecrets = [localMatch.password, localMatch.pin]
             .map((s) => (s || '').trim())
@@ -1451,7 +1456,16 @@ export const useAppStore = create<AppState>((set, get) => {
         }
       }
 
-      if (!localMatch) return false;
+      if (!localMatch) {
+        const errCode =
+          typeof lastAuthError === 'object' && lastAuthError !== null && 'code' in lastAuthError
+            ? String((lastAuthError as { code?: unknown }).code)
+            : '';
+        if (errCode === 'auth/operation-not-allowed') {
+          set({ cloudError: formatFirebaseError(lastAuthError, get().language) });
+        }
+        return false;
+      }
 
       localStorage.setItem(SESSION_KEY, localMatch.id);
       const currentFb = auth.currentUser;
@@ -1467,6 +1481,32 @@ export const useAppStore = create<AppState>((set, get) => {
         void connectFirebaseUser(currentFb, { setSessionIfMissing: false });
       }
       return true;
+    },
+
+    loginWithGoogle: async (options) => {
+      const lang = get().language;
+      if (!get().isOnline) {
+        const msg =
+          lang === 'ru'
+            ? 'Для входа через Google требуется интернет.'
+            : "Google orqali kirish uchun internet aloqasi kerak.";
+        set({ cloudError: msg });
+        return { ok: false, error: msg };
+      }
+      set({ cloudError: null });
+      try {
+        const fbUser = await signInWithGooglePopup();
+        const linkOnly = Boolean(options?.linkCurrentSession && get().currentUserId);
+        await connectFirebaseUser(fbUser, {
+          forceInteractiveLogin: !linkOnly,
+          setSessionIfMissing: !linkOnly,
+        });
+        return { ok: true };
+      } catch (err) {
+        const msg = formatFirebaseError(err, lang);
+        set({ cloudError: msg });
+        return { ok: false, error: msg };
+      }
     },
 
     clearCloudError: () => set({ cloudError: null }),
@@ -3625,8 +3665,15 @@ export const useAppStore = create<AppState>((set, get) => {
             deriveFirebaseAuthPassword(emp.phone, targetSecretForAuth),
             prevPasswords
           );
-          if (!provRes.ok && provRes.code === 'auth/operation-not-allowed' && provRes.error) {
-            get().notify(provRes.error, 'error');
+          if (!provRes.ok && provRes.code === 'auth/operation-not-allowed') {
+            if (!cleanEmail) {
+              get().notify(
+                get().language === 'ru'
+                  ? 'Сотрудник сохранён! Работает по PIN-коду и Google email (вход по номеру с другого устройства требует Email/Password в Firebase Console).'
+                  : "Xodim saqlandi! Kassa terminalida PIN-kod yoki Google email orqali kirishi mumkin (alohida telefondan raqam+parol bilan kirish uchun Firebase Console'da Email/Password ni yoqing).",
+                'info'
+              );
+            }
           }
         }
       }
@@ -3742,11 +3789,19 @@ export const useAppStore = create<AppState>((set, get) => {
           const prevPasswords = prevSecretCandidates.map((s) =>
             deriveFirebaseAuthPassword(user.phone, s)
           );
-          await provisionStaffAccountOnSecondaryApp(
+          const provRes = await provisionStaffAccountOnSecondaryApp(
             authEmail,
             deriveFirebaseAuthPassword(user.phone, nextSecret),
             prevPasswords
           );
+          if (!provRes.ok && provRes.code === 'auth/operation-not-allowed') {
+            get().notify(
+              get().language === 'ru'
+                ? 'PIN/пароль обновлён в базе! Вход по PIN и Google работает сразу.'
+                : "PIN/parol bazada yangilandi! PIN-kod va Google orqali kirish darhol ishlaydi.",
+              'info'
+            );
+          }
         }
       }
       const nowIso = new Date().toISOString();

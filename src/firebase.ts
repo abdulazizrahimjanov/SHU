@@ -3,6 +3,8 @@ import {
   getAuth,
   initializeAuth,
   inMemoryPersistence,
+  GoogleAuthProvider,
+  signInWithPopup,
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
   updatePassword,
@@ -195,8 +197,18 @@ export function formatFirebaseError(error: unknown, lang: 'uz' | 'ru' = 'uz'): s
   }
   if (low.includes('auth/operation-not-allowed')) {
     return lang === 'ru'
-      ? 'В Firebase Authentication не включён вход по Email/Password.'
-      : "Firebase Authentication'da Email/Password kirish usuli yoqilmagan.";
+      ? 'В Firebase Authentication не включён вход по Email/Password. Войдите через Google или включите Email/Password в Firebase Console.'
+      : "Firebase Authentication'da Email/Password kirish usuli yoqilmagan. Google orqali kiring yoki Firebase Console'da Email/Password ni yoqing.";
+  }
+  if (low.includes('auth/popup-closed-by-user') || low.includes('auth/cancelled-popup-request')) {
+    return lang === 'ru'
+      ? 'Окно входа Google было закрыто. Попробуйте снова.'
+      : "Google kirish oynasi yopildi. Qaytadan urinib ko'ring.";
+  }
+  if (low.includes('auth/popup-blocked')) {
+    return lang === 'ru'
+      ? 'Браузер заблокировал всплывающее окно Google. Разрешите всплывающие окна и повторите попытку.'
+      : "Brauzer Google kirish oynasini blokladi. Qalqib chiquvchi oynalarga ruxsat berib qayta urining.";
   }
   if (low.includes('auth/network-request-failed')) {
     return lang === 'ru'
@@ -302,6 +314,13 @@ export async function testConnection(): Promise<boolean> {
     console.error('Please check your Firebase configuration or network connection.');
   }
   return res.ok;
+}
+
+export async function signInWithGooglePopup(): Promise<FirebaseUser> {
+  const provider = new GoogleAuthProvider();
+  provider.setCustomParameters({ prompt: 'select_account' });
+  const res = await signInWithPopup(auth, provider);
+  return res.user;
 }
 
 export async function signInStaffWithEmailPassword(
